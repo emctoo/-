@@ -1,10 +1,14 @@
 #!/usr/bin/env python
 # coding: utf8
 
-import array
+import array, sys
 
-with open('input.hexarray.txt', 'r') as f:
-    s = f.read()
+if len(sys.argv) == 1:
+    with open('input.hexarray.txt', 'r') as f:
+        s = f.read()
+else:
+    s = sys.argv[1]
+
 print('number:', s)
 
 l = list(map(lambda x: int(x, 16), s.split()))
