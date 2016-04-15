@@ -114,7 +114,7 @@ int u2g(char *inbuf, int inlen, char *outbuf, int outlen) { return code_convert(
 int g2u(char *inbuf, size_t inlen, char *outbuf, size_t outlen) { return code_convert("gb2312", "utf-8", inbuf, inlen, outbuf, outlen); }
 
 void dump_cstring_bytes(const char *bytes, size_t sz) {
-   printf("[%.*s] ", (int)sz, bytes);
+   printf("[%.*s]\n", (int)sz, bytes);
    for (size_t nth = 0; nth < sz; ++nth) {
       printf("%x ", (uint8_t)bytes[nth]);
    }
