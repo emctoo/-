@@ -4,3 +4,5 @@ cpp
 *.o
 .sconsign.dblite
 *.swp
+Makefile
+codec
