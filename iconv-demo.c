@@ -7,8 +7,12 @@
 #include <iconv.h>
 #include <unicode/ucsdet.h>
 
-#include <chardet/chardet.h> // mozilla libchardet
+/*
+ * mozilla universal charset detector
+ */
+#include <chardet.h>
 
+#ifdef __linux__
 #include <uchardet/uchardet.h> // libuchardet
 
 void detect_bytes_charset_by_libuchardet(const char *data) {
@@ -30,6 +34,12 @@ void detect_bytes_charset_by_libuchardet(const char *data) {
 
    uchardet_delete(ud);
 }
+
+#else
+
+void detect_bytes_charset_by_libuchardet(const char *data) {}
+
+#endif // __linux__
 
 int detect_bytes_charset_by_libchardet(const char *inbuf) {
    DetectObj *obj = detect_obj_init();
