@@ -6,3 +6,4 @@ cpp
 *.swp
 Makefile
 codec
+*.user
