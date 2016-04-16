@@ -5,6 +5,12 @@
 
 #include <QString>
 
+#include <glog/logging.h>
+#include <cppformat/format.h>
+
+#include <chardet/chardet.h>
+#include <iconv.h>
+
 // 接收到的字节, gb18030编码的, 要转换成utf8的
 uint8_t bytes[] = {
 	0x52, 0x45, 0x54, 0x52, 0x20, 0x2f, 0x70, 0x75, 0x62, 0x2f, 0x6d, 0x79, 0x74,
@@ -18,21 +24,103 @@ uint8_t bytes[] = {
 	0x62, 0x00}; // 添加了0结尾
 
 void dump_cstring_bytes(const char *bytes, size_t sz) {
-    printf("**** **** **** ***\n");
+    fmt::print_colored(fmt::RED, "{}\n", ".... .... .... ....");
+
     printf("[%.*s]\n", (int)sz, bytes);
     for (size_t nth = 0; nth < sz; ++nth) {
         printf("%x, ", (uint8_t)bytes[nth]);
     }
     putchar('\n');
+
+    fmt::print_colored(fmt::BLUE, "{}\n", "====");
 }
 
-void working(uint8_t *input_bytes, size_t size, char *output) {
+int detect_bytes_charset(const char *inbuf, std::string &encoding) {
+    DetectObj *obj = detect_obj_init();
+    if (obj == NULL) {
+        LOG(WARNING) << "内存分配错误";
+        return -1;
+    }
+
+    switch (detect(inbuf, &obj)) {
+    case CHARDET_OUT_OF_MEMORY :
+        LOG(WARNING) << "处理错误: out of memory";
+        detect_obj_free (&obj);
+        return -1;
+
+    case CHARDET_NULL_OBJECT :
+        LOG(WARNING) << "处理错误: null object";
+        return -1;
+    }
+
+    encoding = std::string(obj->encoding);
+    detect_obj_free(&obj);
+
+    return 0;
 }
 
-int main(void) {
+// 代码转换:从一种编码转为另一种编码
+int convert_codec_to_utf8(const char *from_charset, char *inbuf, size_t inlen, char *outbuf, size_t outlen) {
+   char **pin = &inbuf, **pout = &outbuf;
+
+   iconv_t cd = iconv_open("utf-8", from_charset); // 必须是utf-8, 不能是utf8
+   if ((int64_t)cd == -1) {
+       LOG(WARNING) << "创建转码结构失败: " << strerror(errno);
+       return -1;
+   }
+
+   memset(outbuf, 0, outlen);
+
+   size_t outbytesleft = outlen;
+   size_t status = iconv(cd, pin, &inlen, pout, &outbytesleft);
+   if ((int)status == -1) {
+      LOG(WARNING) << fmt::format("转码失败, [{}]", strerror(errno));
+      return -1;
+   }
+
+   iconv_close(cd);
+   return outlen - outbytesleft;
+}
+
+int working(uint8_t *input_bytes, size_t size, char *output, int output_max_size) {
+    uint8_t *the_rest_bytes = (uint8_t *)memchr(input_bytes, ' ', size); // 找空格的地方
+    if (the_rest_bytes == NULL) the_rest_bytes = input_bytes + size; // 有可能找不到，就指向末端
+
+    std::string command((char *)input_bytes, the_rest_bytes - input_bytes);
+    LOG(INFO) << fmt::format("command: [{}]", command);
+
+    if (the_rest_bytes == (input_bytes + size)) {
+        LOG(INFO) << "command没有参数，不需要进一步处理";
+        return -1;
+    }
+
+    the_rest_bytes++; // 跳过空格
+    size_t the_rest_bytes_size = input_bytes + size - the_rest_bytes;
+
+    std::string encoding;
+    if (detect_bytes_charset((char *)the_rest_bytes, encoding) == -1) {
+        LOG(WARNING) << "fail to detect encoding";
+        return -1;
+    }
+
+    int output_bytes_size = convert_codec_to_utf8(
+                encoding.c_str(), (char *)the_rest_bytes, the_rest_bytes_size, output, output_max_size);
+    if (output_bytes_size == -1) return -1;
+
+    return 0;
+}
+
+// uint8_t * -> char *
+int main(int argc, char *argv[]) {
+    google::InitGoogleLogging(argv[0]);
+    FLAGS_logtostderr = 1;
+
+    LOG(INFO) << "starting ...";
+
 	char output[1024] = "";
-	working(bytes, sizeof(bytes), output);
+    working(bytes, sizeof(bytes), output, 1024);
 
+#if 0
 	size_t length = sizeof(bytes);
 
 	std::cout << "length: " << length << '\n';
@@ -58,5 +146,7 @@ int main(void) {
 
     char *input_bytes = const_cast<char *>(command.c_str());
     dump_cstring_bytes(input_bytes, command.size());
+#endif
+    google::ShutdownGoogleLogging();
 	return 0;
 }
